@@ -5,8 +5,6 @@ https://singingbanana.com/dice/article.htm
 
 """
 import binascii
-import sys
-import os
 from itertools import product
 from typing import Callable, Any, TypeVar
 
@@ -16,8 +14,6 @@ from more_itertools import unique_everseen
 from tqdm import tqdm
 
 from intransidice import graphs
-
-sys.path.append(os.path.dirname(__file__) + '/..')
 
 T = TypeVar("T")
 
