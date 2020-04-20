@@ -1,0 +1,4 @@
+more-itertools
+numpy
+p_tqdm
+tqdm
