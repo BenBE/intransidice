@@ -15,6 +15,8 @@ import numpy as np
 from more_itertools import unique_everseen
 from tqdm import tqdm
 
+from intransidice import graphs
+
 sys.path.append(os.path.dirname(__file__) + '/..')
 
 T = TypeVar("T")
@@ -194,27 +196,10 @@ class DieMaker:
         yield from self.remove_same_cycles(filter_min_dice())
 
     def fixed_cycles(self, dice=3):
-        def do_cycle(current):
-            nextset = self.table.beaten_by(current[-1])
-            if len(current) % 2:
-                nextset = list(reversed(nextset))
-            if len(current) == dice:
-                # found a cycle?
-                if current[0] in nextset:
-                    yield tuple(current)
-            else:
-                # check for longer cycles, excluding shorter subcycles
-                for dn in nextset:
-                    if dn not in current:
-                        yield from do_cycle(current + [dn])
-
-        def root():
-            t = tqdm(self.all_dice, miniters=1)
-            for d1 in t:
-                t.set_description(f"{dice} dice, first is {Die.get_die_name(d1)}")
-                yield from do_cycle([d1])
-
-        yield from self.remove_same_cycles(root())
+        for gcycle in graphs.enumerate_fixed_len_cycles(self.table.wins_against, dice):
+            # gcycle is in array indices
+            cycle = tuple(self.all_dice[i] for i in gcycle)
+            yield cycle
 
     def reverses_when_double(self, cycles):
         def get_twodice(one: bytes):

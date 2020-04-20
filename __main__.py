@@ -1,11 +1,10 @@
 import argparse
-import sys
 
 from intransidice import Die, DieMaker
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Generate Intransitive Dice sets.')
-    parser.add_argument('--dice', type=int, default=5,
+    parser.add_argument('--dice', type=int, default=3,
                         help='Number of dice in the set to make')
     parser.add_argument('--sides', type=int,default=Die.SIDES,
                         help='Number of sides of the dice')
