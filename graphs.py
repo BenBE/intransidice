@@ -48,23 +48,30 @@ def enumerate_fixed_len_cycles(adj: np.ndarray, k):
     vcount = adj.shape[0]
     indexarr = np.array(range(vcount), dtype=int)
 
-    def rotate(i: int, values: Iterable):
+    def rotate(i: int):
         nonlocal pattern
         vh = pattern[0]
         before = pattern[:i]
+        vt = pattern[i-1]
+        # what can come after vt?
+        ok_for_next = np.isin(indexarr, before, invert=True) & (indexarr > vh)
+        vna = indexarr[adj[vt] & ok_for_next]
         if i == k - 1:
             # final digit, don't bother storing in pattern
-            for v in values:
+            for v in vna:
                 if adj[v, vh]:
                     yield (*before, v)
         else:
-            # don't have to worry about this level's `values`: a vertex is never connected to itself
-            ok_for_next = np.isin(indexarr, before, invert=True) & (indexarr > vh)
-            for v in values:
+            for v in vna:
                 pattern[i] = v
-                vna = indexarr[adj[v] & ok_for_next]
-                yield from rotate(i + 1, vna)
+                yield from rotate(i + 1)
+
+    def root():
+        nonlocal pattern
+        for vh in tqdm(indexarr, miniters=1):
+            pattern[0] = vh
+            yield from rotate(1)
 
     if k < 1:
         return
-    yield from rotate(0, tqdm(indexarr, miniters=1))
+    yield from root()
