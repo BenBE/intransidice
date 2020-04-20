@@ -6,7 +6,7 @@ https://singingbanana.com/dice/article.htm
 """
 import binascii
 from itertools import product
-from typing import Callable, TypeVar
+from typing import Callable, TypeVar, List
 
 import numpy as np
 
@@ -88,6 +88,11 @@ class Die:
     def get_unique_dice_vector(cls):
         return np.fromiter(Die.get_unique_dice(), dtype=Die.TINDEX)
 
+    @classmethod
+    def get_two_dice_hash(cls, one: bytes):
+        totals = [a + b for a, b in product(one, one)]
+        return bytes(sorted(totals))
+
     @staticmethod
     def play_wdl(d1: bytes, d2: bytes):
         """ statistics for playing hyperdice with sides given by d1 and d2 """
@@ -104,38 +109,62 @@ class Die:
 Die.set_die_type(Die.SIDES, Die.ALPHABET)
 
 
+class DiceHashDG:
+    """"
+    This class holds the results and the "Win" directed graph for a set of dice hashes, having
+    played every dice against every other.
+    Dice need not be actual single dice, dice_hashes can also contain "virtual" dice of multiple throws
+    """
+
+    def __init__(self, topic: str, dice_hashes: List[bytes]) -> None:
+        self.dice_hashes = {d: i for i, d in enumerate(dice_hashes)}
+        self.results_sum = len(dice_hashes[0]) ** 2
+        print("DiceHashDG: ", topic, "playing all", len(self.dice_hashes), "dice states with ", self.results_sum, "outcomes each pair")
+        self.results: np.ndarray = cache_or_recompute(f"{topic}_x_wins_against_y", self.calc_results)
+        self.graph = self.results_to_graph(self.results)
+        print("DiceHashDG: ", topic, "graph contains a total of ", self.graph.size, "outcomes")
+
+    def results_to_graph(self, results: np.ndarray):
+        # wins > draw + loss
+        return np.array(results > self.results_sum / 2, dtype=bool)
+
+    def calc_results(self):
+        # tabulate all dice pairs
+        dh = list(self.dice_hashes.keys())
+
+        def play_wdl_line(d1):
+            # save some space by only including wins and converting in inner loop
+            return np.array([Die.play_wdl(d1, d2)[0] for d2 in dh], dtype=np.uint16)
+
+        data = p_map(play_wdl_line, dh)
+        table = np.array(data)
+        return table
+
+
 class WinTable:
 
     def __init__(self, all_dice: np.ndarray) -> None:
         self.all_dice: np.ndarray = all_dice
         self.tidx2i_cache = {tidx: i for i, tidx in enumerate(self.all_dice)}
         print("WinTable: have", len(self.all_dice), "unique dice")
-        self.wdl_table: np.ndarray = cache_or_recompute("x_wins_against_y", self.calc_wintable)
-        print("WinTable: have", str(self.wdl_table.shape), "total dice pairs")
-        # wins > draw + loss
-        self.wins_against: np.ndarray = np.array(
-            self.wdl_table[:, :, 0] > self.wdl_table[:, :, 1] + self.wdl_table[:, :, 2], dtype=bool)
-
-    def calc_wintable(self):
-        dh = [Die.get_die_hash(d) for d in self.all_dice]
-
-        def play_wdl_line(d):
-            return [Die.play_wdl(d, d2) for d2 in dh]
-
-        data = p_map(play_wdl_line, dh)
-        table = np.array(data, dtype=np.int8)
-        return table
+        hashes_one = [Die.get_die_hash(d) for d in self.all_dice]
+        self.throwone = DiceHashDG("single", hashes_one)
+        self.throwtwo = DiceHashDG("double", [Die.get_two_dice_hash(d) for d in hashes_one])
 
     def tidx2i(self, idx: Die.TINDEX) -> int:
         return self.tidx2i_cache[idx]
 
     def get_result(self, d1: Die.TINDEX, d2: Die.TINDEX):
-        return self.wdl_table[self.tidx2i(d1), self.tidx2i(d2)]
+        id1, id2 = self.tidx2i(d1), self.tidx2i(d2)
+        w = self.throwone.results[id1, id2]
+        l = self.throwone.results[id2, id1]
+        d = self.throwone.results_sum - w - l
+        return w, d, l
 
     def beaten_by(self, ref: Die.TINDEX) -> np.ndarray:
         """ list of TIDX that always loose to this dice """
         iref = self.tidx2i(ref)
-        row = self.wins_against[iref]
+        row = self.throwone.graph[iref]
         lst = self.all_dice[row]
         return lst
 
@@ -155,37 +184,34 @@ class DieMaker:
         pivot = np.argmax(cycle)
         return tuple(cycle[pivot:] + cycle[:pivot])
 
-    def fixed_cycles(self, dice=3):
-        for gcycle in graphs.enumerate_fixed_len_cycles(self.table.wins_against, dice):
-            # gcycle is in array indices
-            cycle = tuple(self.all_dice[i] for i in gcycle)
-            yield cycle
+    def fixed_cycles_g(self, dice=3):
+        """ Return tuples in array index format """
+        yield from graphs.enumerate_fixed_len_cycles(self.table.throwone.graph, dice)
 
-    def reverses_when_double(self, cycles):
-        def get_twodice(one: bytes):
-            totals = [a + b for a, b in product(one, one)]
-            return bytes(sorted(totals))
+    def reverses_when_double(self, gcycles):
+        lut2 = self.table.throwtwo.graph
 
-        def check_cycle(cycle):
-            rev = list(reversed(cycle))
-            for d1, d2 in zip(rev, rev[1:] + [rev[0]]):
-                double1 = get_twodice(Die.get_die_hash(d1))
-                double2 = get_twodice(Die.get_die_hash(d2))
-                w, d, l = Die.play_wdl(double1, double2)
-                d1wins = w > d + l
-                if not d1wins:
+        def check_cycle_lut(cycle):
+            # check if clockwise on doubles is a loss everytime
+            for d1, d2 in zip(cycle, (*cycle[1:], cycle[0])):
+                d2wins = lut2[d2, d1]
+                if not d2wins:
                     return False
             return True
 
-        for cycle in cycles:
-            if check_cycle(cycle):
-                yield cycle
+        for gcycle in gcycles:
+            if check_cycle_lut(gcycle):
+                yield gcycle
+
+    def gcycles_to_tidx(self, gcycles):
+        for gcycle in gcycles:
+            yield tuple(self.all_dice[i] for i in gcycle)
 
     def make(self, dice):
 
-        # forward = self.simple_cycles(max_dice=3, min_dice=3)
-        forward = self.fixed_cycles(dice=dice)
-        reversible = self.reverses_when_double(forward)
+        forward_g = self.fixed_cycles_g(dice=dice)
+        reversible_g = self.reverses_when_double(forward_g)
+        reversible = self.gcycles_to_tidx(reversible_g)
         for cycle in reversible:
             print("\n", " -> ".join(Die.get_die_name(d) for d in cycle), flush=True)
 
