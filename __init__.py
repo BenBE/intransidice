@@ -11,7 +11,8 @@ from typing import Callable, Any, TypeVar
 import numpy as np
 
 from more_itertools import unique_everseen
-from tqdm import tqdm
+from functools import partial
+from p_tqdm import p_map, p_umap, p_imap
 
 from intransidice import graphs
 
@@ -117,15 +118,10 @@ class WinTable:
             self.wdl_table[:, :, 0] > self.wdl_table[:, :, 1] + self.wdl_table[:, :, 2], dtype=bool)
 
     def calc_wintable(self):
-        data = [
-            [
-                Die.play_wdl(dx, Die.get_die_hash(y))
-                for y in self.all_dice
-            ]
-            for dx in (
-                Die.get_die_hash(x) for x in tqdm(self.all_dice, desc="calc_wintable (X vs all)")
-            )
-        ]
+        dh = [ Die.get_die_hash(d) for d in self.all_dice ]
+        def play_wdl_line(d):
+            return [ Die.play_wdl(d, d2) for d2 in dh]
+        data = p_map(play_wdl_line, dh)
         table = np.array(data, dtype=np.int8)
         return table
 
@@ -177,10 +173,9 @@ class DieMaker:
                     yield from do_cycle(current + [dn])
 
         def root():
-            t = tqdm(self.all_dice)
-            for d1 in t:
-                t.set_description("starting at %s" % Die.get_die_name(d1))
+            def p_root(d1):
                 yield from do_cycle([d1])
+            return p_uimap(p_root, self.all_dice);
 
         def filter_min_dice():
             for c in root():
@@ -200,7 +195,7 @@ class DieMaker:
             totals = [a + b for a, b in product(one, one)]
             return bytes(sorted(totals))
 
-        for cycle in cycles:
+        def check_cycle(cycle):
             rev = list(reversed(cycle))
             remains_ring = True
             for d1, d2 in zip(rev, rev[1:] + [rev[0]]):
@@ -209,9 +204,11 @@ class DieMaker:
                 w, d, l = Die.play_wdl(double1, double2)
                 d1wins = w > d + l
                 if not d1wins:
-                    remains_ring = False
+                    return False
                     break
-            if remains_ring:
+            return True
+        for cycle in cycles:
+            if check_cycle(cycle):
                 yield cycle
 
     def make(self, dice):
