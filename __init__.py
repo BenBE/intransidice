@@ -6,14 +6,13 @@ https://singingbanana.com/dice/article.htm
 """
 import binascii
 from itertools import product
-from typing import Callable, Any, TypeVar
+from typing import Callable, TypeVar
 
 import numpy as np
 
 from more_itertools import unique_everseen
-from functools import partial
-from p_tqdm import p_map, p_umap, p_imap
 
+from p_tqdm import p_map
 from intransidice import graphs
 
 T = TypeVar("T")
@@ -118,9 +117,11 @@ class WinTable:
             self.wdl_table[:, :, 0] > self.wdl_table[:, :, 1] + self.wdl_table[:, :, 2], dtype=bool)
 
     def calc_wintable(self):
-        dh = [ Die.get_die_hash(d) for d in self.all_dice ]
+        dh = [Die.get_die_hash(d) for d in self.all_dice]
+
         def play_wdl_line(d):
-            return [ Die.play_wdl(d, d2) for d2 in dh]
+            return [Die.play_wdl(d, d2) for d2 in dh]
+
         data = p_map(play_wdl_line, dh)
         table = np.array(data, dtype=np.int8)
         return table
@@ -154,36 +155,6 @@ class DieMaker:
         pivot = np.argmax(cycle)
         return tuple(cycle[pivot:] + cycle[:pivot])
 
-    def remove_same_cycles(self, source):
-        def cycle_hash(cycle):
-            return hash(self.canonical_ordering(cycle))
-
-        # TODO should not even generate doubles, but length-cutoffs make it difficult...
-        yield from unique_everseen(source, key=cycle_hash)
-
-    def simple_cycles(self, max_dice=5, min_dice=0):
-        def do_cycle(current):
-            nextset = self.table.beaten_by(current[-1])
-            # this will lead to a loop, report that first
-            if len(current) > 1 and current[0] in nextset:
-                yield current
-            # check for longer cycles
-            if len(current) < max_dice:
-                for dn in nextset:
-                    yield from do_cycle(current + [dn])
-
-        def root():
-            def p_root(d1):
-                yield from do_cycle([d1])
-            return p_uimap(p_root, self.all_dice);
-
-        def filter_min_dice():
-            for c in root():
-                if len(c) >= min_dice:
-                    yield c
-
-        yield from self.remove_same_cycles(filter_min_dice())
-
     def fixed_cycles(self, dice=3):
         for gcycle in graphs.enumerate_fixed_len_cycles(self.table.wins_against, dice):
             # gcycle is in array indices
@@ -197,7 +168,6 @@ class DieMaker:
 
         def check_cycle(cycle):
             rev = list(reversed(cycle))
-            remains_ring = True
             for d1, d2 in zip(rev, rev[1:] + [rev[0]]):
                 double1 = get_twodice(Die.get_die_hash(d1))
                 double2 = get_twodice(Die.get_die_hash(d2))
@@ -205,8 +175,8 @@ class DieMaker:
                 d1wins = w > d + l
                 if not d1wins:
                     return False
-                    break
             return True
+
         for cycle in cycles:
             if check_cycle(cycle):
                 yield cycle
