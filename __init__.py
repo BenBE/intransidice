@@ -95,16 +95,14 @@ class Die:
     @staticmethod
     def play_wdl(d1: bytes, d2: bytes):
         """ statistics for playing hyperdice with sides given by d1 and d2 """
-        total = len(d1) * len(d2)
-        win = draw = 0
-        for s1 in d1:
-            for s2 in d2:
-                if s1 == s2:
-                    draw += 1
-                elif s1 > s2:
-                    win += 1
-        loss = total - draw - win
-        return (win, draw, loss)
+
+        ad1 = np.tile(list(d1), (len(d2), 1)).T
+        ad2 = np.tile(list(d2), (len(d1), 1))
+
+        win = np.count_nonzero(ad1 > ad2)
+        loss = np.count_nonzero(ad1 < ad2)
+        draw = ad1.size - win - loss
+        return win, draw, loss
 
 
 Die.set_die_type(Die.SIDES, Die.ALPHABET)
