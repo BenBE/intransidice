@@ -1,4 +1,5 @@
-from collections import deque, Iterable
+from collections import deque
+from typing import Iterable
 
 import numpy as np
 from tqdm import tqdm
