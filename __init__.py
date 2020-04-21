@@ -80,7 +80,17 @@ class Die:
 
     @classmethod
     def get_unique_dice(cls):
-        all_dice = range(cls.get_dice_count())
+        B = len(cls.ALPHABET)
+        def gen_unique_dice(base, digit, remaining):
+            nonlocal B
+            if not remaining:
+                yield base
+                return
+            base *= B
+            for d in range(digit, B):
+                yield from gen_unique_dice(base + d, d, remaining - 1)
+
+        all_dice = gen_unique_dice(0, 0, cls.SIDES)
         unique_dice = unique_everseen(all_dice, key=cls.get_die_hash)
         yield from unique_dice
 
