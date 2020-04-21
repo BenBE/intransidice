@@ -4,8 +4,9 @@ from typing import Tuple, Iterable, Optional, List
 import numpy as np
 from tqdm import tqdm
 
-FOR_PROFILER = False
+from intransidice import pqueue
 
+FOR_PROFILER = False
 
 # A concept used in these:
 #   [...] get an adjacent edge of the tail whose end does not occur in the open path and
@@ -24,13 +25,13 @@ def enumerate_cycles_liu(adj: np.ndarray, kmax=None):
 
     vcount = adj.shape[0]
     indexarr = np.array(range(vcount), dtype=int)
-    que = deque()
 
-    for n in indexarr:
-        que.append((n,))
+    Q = None
 
-    while len(que):
-        P: tuple = que.popleft()
+    def task(P: tuple):
+        nonlocal Q
+        nonlocal adj, indexarr, kmax
+
         k = len(P)
         vh = P[0]
         vt = P[-1]
@@ -43,8 +44,15 @@ def enumerate_cycles_liu(adj: np.ndarray, kmax=None):
             vna = indexarr[adj[vt]]
             for vn in vna:
                 if vn > vh and vn not in P:
-                    que.append((*P, vn))
+                    Q.add_task((*P, vn))
 
+    Q = pqueue.PQueue(task)
+
+    for n in indexarr:
+        Q.add_task((n,))
+
+    for r in Q.generator():
+        yield r
 
 def enumerate_fixed_len_cycles(adj: np.ndarray, k):
     pattern = [0] * k
