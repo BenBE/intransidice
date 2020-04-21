@@ -119,10 +119,10 @@ class DiceHashDG:
     def __init__(self, topic: str, dice_hashes: List[bytes]) -> None:
         self.dice_hashes = {d: i for i, d in enumerate(dice_hashes)}
         self.results_sum = len(dice_hashes[0]) ** 2
-        print("DiceHashDG: ", topic, "playing all", len(self.dice_hashes), "dice states with ", self.results_sum, "outcomes each pair")
+        print("DiceHashDG: ", topic, "playing all", len(self.dice_hashes), "dice states with", self.results_sum, "outcomes each pair")
         self.results: np.ndarray = cache_or_recompute(f"{topic}_x_wins_against_y", self.calc_results)
         self.graph = self.results_to_graph(self.results)
-        print("DiceHashDG: ", topic, "graph contains a total of ", self.graph.size, "outcomes")
+        print("DiceHashDG: ", topic, "graph contains a total of", self.graph.size, "outcomes")
 
     def results_to_graph(self, results: np.ndarray):
         # wins > draw + loss
