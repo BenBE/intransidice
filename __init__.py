@@ -40,7 +40,7 @@ class Die:
         global syshash
         cls.SIDES = sides
         cls.ALPHABET = alphabet
-        syshash = "{:8x}".format(binascii.crc32(f"{sides}-{alphabet}".encode()))
+        syshash = "s{:02d}a{:02d}.{:8x}".format(sides, len(alphabet), binascii.crc32(f"{sides}-{alphabet}".encode()))
 
     @classmethod
     def get_dice_count(cls):
