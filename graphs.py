@@ -1,8 +1,10 @@
 from collections import deque
-from typing import Iterable
 
 import numpy as np
 from tqdm import tqdm
+
+FOR_PROFILER = False
+
 
 # A concept used in these:
 #   [...] get an adjacent edge of the tail whose end does not occur in the open path and
@@ -47,30 +49,33 @@ def enumerate_fixed_len_cycles(adj: np.ndarray, k):
     pattern = [0] * k
     vcount = adj.shape[0]
     indexarr = np.array(range(vcount), dtype=int)
+    # can only be a chain part if it connects in *and* out
+    any_chain_part = adj.any(axis=1) & adj.any(axis=0)
 
-    def rotate(i: int):
+    def rotate(i: int, vt: int, ok_for_next: np.ndarray):
         nonlocal pattern
-        vh = pattern[0]
-        before = pattern[:i]
-        vt = pattern[i-1]
         # what can come after vt?
-        ok_for_next = np.isin(indexarr, before, invert=True) & (indexarr > vh)
-        vna = indexarr[adj[vt] & ok_for_next]
+        vna = indexarr[ok_for_next & adj[vt]]
         if i == k - 1:
-            # final digit, don't bother storing in pattern
-            for v in vna:
-                if adj[v, vh]:
-                    yield (*before, v)
+            vh = pattern[0]
+            # final digit, directly check if it heads home
+            connects = adj[vna, vh]
+            yield from ((*pattern[:i], v) for v in vna[connects])
         else:
+            lessparts = ok_for_next.copy()
             for v in vna:
                 pattern[i] = v
-                yield from rotate(i + 1)
+                lessparts[v] = False
+                yield from rotate(i + 1, v, lessparts)
+                lessparts[v] = True
 
     def root():
         nonlocal pattern
-        for vh in tqdm(indexarr, miniters=1):
+        for vh in tqdm(indexarr[any_chain_part], miniters=1):
+            if FOR_PROFILER and (vh >= 360):
+                break
             pattern[0] = vh
-            yield from rotate(1)
+            yield from rotate(1, vh, any_chain_part & (indexarr > vh))
 
     if k < 1:
         return
