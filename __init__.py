@@ -225,7 +225,7 @@ class DieMaker:
         for gcycle in gcycles:
             yield tuple(self.all_dice[i] for i in gcycle)
 
-    def graph_cycles(self, dice):
+    def graph_cycles(self, dice, extra_mask=None):
         gr1 = self.table.throwone.graph
         gr2 = self.table.throwtwo.graph
         # subgraph that contains only links that are a>b with 1 and b>1 with 2
@@ -233,10 +233,25 @@ class DieMaker:
         cyclable_graph = gr1 & gr2.T
         # only use nodes that can be a loop in this subgraph
         cyclable_2_rev = graphs.adjacency_where_can_cycle(cyclable_graph)
+        if extra_mask is not None:
+            cyclable_2_rev &= extra_mask
         yield from graphs.enumerate_chains(cyclable_graph, dice, cyclable_2_rev, only_cycles=True)
 
-    def make(self, dice):
-        forward_g = self.graph_cycles(dice)
+    def get_coinlike_dice(self):
+        # "coinlike" means a die has at most 2 values (in any amount)
+        def is_coinlike(d):
+            # have exactly 2 values: them being sorted means anything in mid is either first or last
+            first, *mid, last = Die.get_die_hash(d)
+            for dig in mid:
+                if dig != first and dig != last:
+                    return False
+            return True
+
+        return np.array([is_coinlike(d) for d in self.all_dice])
+
+    def make(self, dice, filter_coinlike):
+        filt_coin = self.get_coinlike_dice() if filter_coinlike else None
+        forward_g = self.graph_cycles(dice, filt_coin)
         reversible_g = self.graph_cycles_filter_reversed_double(forward_g)
         reversible = self.graph_cycles_to_tidx(reversible_g)
         cnt = 0

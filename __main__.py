@@ -17,9 +17,11 @@ if __name__ == "__main__":
                         help='Number of sides of the dice')
     parser.add_argument('--alphabet', type=str, default=Die.ALPHABET,
                         help='labels of the sides in ascending order')
+    parser.add_argument('--filter-coinlike', type=bool, default=False,
+                        help='only return die that are coinlike')
 
     args = parser.parse_args()
 
     Die.set_die_type(args.sides, args.alphabet)
     maker = DieMaker()
-    maker.make(args.dice)
+    maker.make(args.dice, args.filter_coinlike)
