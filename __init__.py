@@ -30,6 +30,14 @@ def cache_or_recompute(item: str, c: Callable[[], T]) -> T:
         return val
 
 
+def count_iterable(it):
+    cnt = 0
+    for e in it:
+        cnt += 1
+        yield e
+    print("Iterator Count of" ,repr(it), "=", cnt)
+
+
 class Die:
     TINDEX = np.uint64
     SIDES = 6
@@ -194,11 +202,11 @@ class DieMaker:
         pivot = np.argmax(cycle)
         return tuple(cycle[pivot:] + cycle[:pivot])
 
-    def fixed_cycles_g(self, dice=3):
+    def graph_cycles_2(self, dice):
         """ Return tuples in array index format """
         yield from graphs.enumerate_fixed_len_cycles(self.table.throwone.graph, dice)
 
-    def reverses_when_double(self, gcycles):
+    def graph_cycles_filter_reversed_double(self, gcycles):
         lut2 = self.table.throwtwo.graph
 
         def check_cycle_lut(cycle):
@@ -213,16 +221,27 @@ class DieMaker:
             if check_cycle_lut(gcycle):
                 yield gcycle
 
-    def gcycles_to_tidx(self, gcycles):
+    def graph_cycles_to_tidx(self, gcycles):
         for gcycle in gcycles:
             yield tuple(self.all_dice[i] for i in gcycle)
 
+    def graph_cycles(self, dice):
+        gr1 = self.table.throwone.graph
+        gr2 = self.table.throwtwo.graph
+        # subgraph that contains only links that are a>b with 1 and b>1 with 2
+        # FIXME: is that provably true? seems waaaay to simple. but true for 6-10-{3,4,5}...
+        cyclable_graph = gr1 & gr2.T
+        # only use nodes that can be a loop in this subgraph
+        cyclable_2_rev = graphs.adjacency_where_can_cycle(cyclable_graph)
+        yield from graphs.enumerate_chains(cyclable_graph, dice, cyclable_2_rev, only_cycles=True)
+
     def make(self, dice):
-
-        forward_g = self.fixed_cycles_g(dice=dice)
-        reversible_g = self.reverses_when_double(forward_g)
-        reversible = self.gcycles_to_tidx(reversible_g)
+        forward_g = self.graph_cycles(dice)
+        reversible_g = self.graph_cycles_filter_reversed_double(forward_g)
+        reversible = self.graph_cycles_to_tidx(reversible_g)
+        cnt = 0
         for cycle in reversible:
-            print("\n", " -> ".join(Die.get_die_name(d) for d in cycle), flush=True)
-
+            cnt += 1
+            print(" -> ".join(Die.get_die_name(d) for d in cycle), flush=True)
+        print("total:", cnt)
         print("")
