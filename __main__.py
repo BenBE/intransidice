@@ -19,9 +19,14 @@ if __name__ == "__main__":
                         help='labels of the sides in ascending order')
     parser.add_argument('--filter-coinlike', type=bool, default=False,
                         help='only return die that are coinlike')
+    parser.add_argument('--eval', type=str, nargs=2, default=None,
+                        help='Evaluate a pair of dice')
 
     args = parser.parse_args()
 
     Die.set_die_type(args.sides, args.alphabet)
     maker = DieMaker()
-    maker.make(args.dice, args.filter_coinlike)
+    if args.eval is not None:
+        maker.evaluate(*args.eval)
+    else:
+        maker.make(args.dice, args.filter_coinlike)

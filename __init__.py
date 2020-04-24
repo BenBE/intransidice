@@ -59,7 +59,7 @@ class Die:
         S = cls.SIDES
         A = cls.ALPHABET
         B = len(A)
-        return sum(A.index(c) * B ** e for e, c in enumerate(name))
+        return sum(A.index(c) * B ** e for e, c in enumerate(reversed(name)))
 
     @classmethod
     def get_die_name(cls, index: TINDEX) -> str:
@@ -177,11 +177,11 @@ class WinTable:
     def tidx2i(self, idx: Die.TINDEX) -> int:
         return self.tidx2i_cache[idx]
 
-    def get_result(self, d1: Die.TINDEX, d2: Die.TINDEX):
+    def get_result(self, hash: DiceHashDG, d1: Die.TINDEX, d2: Die.TINDEX):
         id1, id2 = self.tidx2i(d1), self.tidx2i(d2)
-        w = self.throwone.results[id1, id2]
-        l = self.throwone.results[id2, id1]
-        d = self.throwone.results_sum - w - l
+        w = hash.results[id1, id2]
+        l = hash.results[id2, id1]
+        d = hash.results_sum - w - l
         return w, d, l
 
     def beaten_by(self, ref: Die.TINDEX) -> np.ndarray:
@@ -265,3 +265,11 @@ class DieMaker:
             print(" -> ".join(Die.get_die_name(d) for d in cycle), flush=True)
         print("total:", cnt)
         print("")
+
+    def evaluate(self, dn1: str, dn2: str):
+        d1 = Die.get_die_index(dn1)
+        d2 = Die.get_die_index(dn2)
+        w,d,l = self.table.get_result(self.table.throwone, d1, d2)
+        print(f"When playing 1: {w:8} {d:8} {l:8}", ("mostly wins" if w > l+d else "mostly loses" if l > w+d else ""))
+        w,d,l = self.table.get_result(self.table.throwtwo, d1, d2)
+        print(f"When playing 2: {w:8} {d:8} {l:8}", ("mostly wins" if w > l+d else "mostly loses" if l > w+d else ""))
