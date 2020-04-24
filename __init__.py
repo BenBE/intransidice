@@ -112,16 +112,20 @@ class Die:
         return bytes(sorted(totals))
 
     @staticmethod
-    def play_wdl(d1: bytes, d2: bytes):
-        """ statistics for playing hyperdice with sides given by d1 and d2 """
-
-        ad1 = np.tile(list(d1), (len(d2), 1)).T
-        ad2 = np.tile(list(d2), (len(d1), 1))
+    def play_wdl_mat(ad1: np.ndarray, d2: bytes):
+        ad2 = np.tile(list(d2), (ad1.shape[0], 1))
 
         win = np.count_nonzero(ad1 > ad2)
         loss = np.count_nonzero(ad1 < ad2)
         draw = ad1.size - win - loss
         return win, draw, loss
+
+    @staticmethod
+    def play_wdl(d1: bytes, d2: bytes):
+        """ statistics for playing hyperdice with sides given by d1 and d2 """
+
+        ad1 = np.tile(list(d1), (len(d2), 1)).T
+        return Die.play_wdl_mat(ad1, d2)
 
 
 Die.set_die_type(Die.SIDES, Die.ALPHABET)
@@ -151,8 +155,9 @@ class DiceHashDG:
         dh = list(self.dice_hashes.keys())
 
         def play_wdl_line(d1):
+            ad1 = np.tile(list(d1), (len(d1), 1)).T
             # save some space by only including wins and converting in inner loop
-            return np.array([Die.play_wdl(d1, d2)[0] for d2 in dh], dtype=np.uint16)
+            return np.array([Die.play_wdl_mat(ad1, d2)[0] for d2 in dh], dtype=np.uint16)
 
         data = p_map(play_wdl_line, dh)
         table = np.array(data)
